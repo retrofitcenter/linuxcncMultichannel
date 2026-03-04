@@ -2019,7 +2019,9 @@ class EMC_IO_STAT:public EMC_IO_STAT_MSG {
 // EMC command base class
 class EMC_CMD_MSG:public RCS_CMD_MSG {
   public:
+    uint8_t channel_id;   // 0 = CH1, 1 = CH2
     EMC_CMD_MSG(NMLTYPE t, size_t s):RCS_CMD_MSG(t, s) {
+        channel_id = 0;   // Default Kanal 0
     };
 
     // For internal NML/CMS use only.
@@ -2030,7 +2032,9 @@ class EMC_CMD_MSG:public RCS_CMD_MSG {
 
 class EMC_STAT_MSG:public RCS_STAT_MSG {
   public:
+    uint8_t channel_id;
     EMC_STAT_MSG(NMLTYPE t, size_t s):RCS_STAT_MSG(t, s) {
+        channel_id = 0;
     };
 
     // For internal NML/CMS use only.
@@ -2059,8 +2063,6 @@ class EMC_STAT:public EMC_STAT_MSG {
 /*
    Declarations of EMC status class implementations, for major subsystems.
    These are defined in the appropriate main() files, and referenced
-   by code in other files to get EMC status.
+   by code in
    */
-
-
 #endif

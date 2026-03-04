@@ -34,6 +34,7 @@
 #include "config.h"
 #include "homing.h"
 #include "axis.h"
+#include "axis_own.h"   // damit wir g_joint_owner_ch setzen können
 
 // Mark strings for translation, but defer translation to userspace
 #define _(s) (s)
@@ -191,6 +192,52 @@ static void update_status(void);
 
 static void handle_kinematicsSwitch(void);
 
+// --- Multi-channel axis ownership (MVP) -----------------------------
+
+// owner per joint: 1..2 ; 0 = default channel 1
+static uint8_t joint_owner_ch_map[EMCMOT_MAX_JOINTS];
+
+// exported pointer used by axis_own.c
+extern uint8_t *g_joint_owner_ch;
+
+// TODO: these should be updated when GETD/PUTD commands succeed.
+// For MVP: initialize everything to channel 1 once.
+static int joint_owner_init_done = 0;
+
+static void joint_owner_init_default(void)
+{
+    if (joint_owner_init_done) return;
+    if (!g_joint_owner_ch) g_joint_owner_ch = joint_owner_ch_map;
+    for (int j=0; j<EMCMOT_MAX_JOINTS; j++) g_joint_owner_ch[j] = 1;
+    joint_owner_init_done = 1;
+}
+
+// true if ANY joint owned by channel needs a new cubic point
+static int anyOwnedNeedNextPoint(int ch)
+{
+    if (!g_joint_owner_ch) g_joint_owner_ch = joint_owner_ch_map;
+    for (int j=0; j<NO_OF_KINS_JOINTS; j++) {
+        if (g_joint_owner_ch[j] != ch) continue;
+        if (cubicNeedNextPoint(&(joints[j].cubic))) return 1;
+    }
+    return 0;
+}
+
+// sum queue depth across channels (for probe / misc checks)
+static int tpQueueDepthAny(void)
+{
+    int d = 0;
+    for (int ch=0; ch<2; ch++) d += tpQueueDepth(&emcmotInternal->coord_tp[ch]);
+    return d;
+}
+
+static int tpIsDoneAll(void)
+{
+    for (int ch=0; ch<2; ch++)
+        if (!tpIsDone(&emcmotInternal->coord_tp[ch])) return 0;
+    return 1;
+}
+
 /***********************************************************************
 *                        PUBLIC FUNCTION CODE                          *
 ************************************************************************/
@@ -219,6 +266,13 @@ void emcmotController(void *arg, long period)
         pcmd_p[6] = &(emcmotStatus->carte_pos_cmd.u);
         pcmd_p[7] = &(emcmotStatus->carte_pos_cmd.v);
         pcmd_p[8] = &(emcmotStatus->carte_pos_cmd.w);
+
+        // ---- Axis ownership joint map hook (INIT ONCE) ----
+        g_joint_owner_ch = joint_owner_ch_map;
+
+        // default: everything channel 1
+        for (int j=0; j<EMCMOT_MAX_JOINTS; j++) joint_owner_ch_map[j] = 1;
+
         do_once = 0;
     }
 
@@ -343,7 +397,8 @@ static void handle_kinematicsSwitch(void) {
     }
 #endif
     axis_apply_ext_offsets_to_carte_pos(-1, pcmd_p);
-    tpSetPos(&emcmotInternal->coord_tp, &emcmotStatus->carte_pos_cmd);
+    for (int ch=0; ch<2; ch++)
+        tpSetPos(&emcmotInternal->coord_tp[ch], &emcmotStatus->carte_pos_cmd);
 } //handle_kinematicsSwitch()
 
 static void process_inputs(void)
@@ -393,17 +448,19 @@ static void process_inputs(void)
         // Actual scale factor is always positive by default
         double adaptive_feed_out = fabs(adaptive_feed_in);
         // Case 1: positive to negative direction change
-        if ( adaptive_feed_in < 0.0 && emcmotInternal->coord_tp.reverse_run == TC_DIR_FORWARD) {
-            // User commands feed in reverse direction, but we're not running in reverse yet
-            if (tpSetRunDir(&emcmotInternal->coord_tp, TC_DIR_REVERSE) != TP_ERR_OK) {
-                // Need to decelerate to a stop first
-                adaptive_feed_out = 0.0;
-            }
-        } else if (adaptive_feed_in > 0.0 && emcmotInternal->coord_tp.reverse_run == TC_DIR_REVERSE ) {
-            // User commands feed in forward direction, but we're running in reverse
-            if (tpSetRunDir(&emcmotInternal->coord_tp, TC_DIR_FORWARD) != TP_ERR_OK) {
-                // Need to decelerate to a stop first
-                adaptive_feed_out = 0.0;
+        for (int ch=0; ch<2; ch++) {
+            if (adaptive_feed_in < 0.0 && emcmotInternal->coord_tp[ch].reverse_run == TC_DIR_FORWARD) {
+                // User commands feed in reverse direction, but we're not running in reverse yet
+                if (tpSetRunDir(&emcmotInternal->coord_tp[ch], TC_DIR_REVERSE) != TP_ERR_OK) {
+                    // Need to decelerate to a stop first
+                    adaptive_feed_out = 0.0;
+                }
+            } else if (adaptive_feed_in > 0.0 && emcmotInternal->coord_tp[ch].reverse_run == TC_DIR_REVERSE) {
+                // User commands feed in forward direction, but we're running in reverse
+                if (tpSetRunDir(&emcmotInternal->coord_tp[ch], TC_DIR_FORWARD) != TP_ERR_OK) {
+                    // Need to decelerate to a stop first
+                    adaptive_feed_out = 0.0;
+                }
             }
         }
         //Otherwise, if direction and sign match, we're ok
@@ -529,7 +586,7 @@ static void process_inputs(void)
 				reportError(_("fault %d during orient in progress"),
 						emcmotStatus->spindle_status[spindle_num].orient_fault);
 				emcmotStatus->commandStatus = EMCMOT_COMMAND_INVALID_COMMAND;
-				tpAbort(&emcmotInternal->coord_tp);
+                for (int ch=0; ch<2; ch++) tpAbort(&emcmotInternal->coord_tp[ch]);
 				SET_MOTION_ERROR_FLAG(1);
 			} else if (*(emcmot_hal_data->spindle[spindle_num].spindle_is_oriented)) {
 				*(emcmot_hal_data->spindle[spindle_num].spindle_orient) = 0;
@@ -699,9 +756,9 @@ static void process_probe_inputs(void)
             /* stop! */
             emcmotStatus->probing = 0;
             emcmotStatus->probeTripped = 1;
-            tpAbort(&emcmotInternal->coord_tp);
+            for (int ch=0; ch<2; ch++) tpAbort(&emcmotInternal->coord_tp[ch]);
         /* check if the probe hasn't tripped, but the move finished */
-        } else if (GET_MOTION_INPOS_FLAG() && tpQueueDepth(&emcmotInternal->coord_tp) == 0) {
+        } else if (GET_MOTION_INPOS_FLAG() && tpQueueDepthAny() == 0) {
             /* we are already stopped, but we need to remember the current
                position here, because it will still be queried */
             emcmotStatus->probedPos = emcmotStatus->carte_pos_fb;
@@ -720,10 +777,10 @@ static void process_probe_inputs(void)
         // not probing, but we have a rising edge on the probe.
         // this could be expensive if we don't stop.
 
-        if(!GET_MOTION_INPOS_FLAG() && tpQueueDepth(&emcmotInternal->coord_tp)) {
+        if(!GET_MOTION_INPOS_FLAG() && tpQueueDepthAny()) {
             // running an command
             if (emcmotStatus->motionType != EMC_MOTION_TYPE_PROBING) {
-                tpAbort(&emcmotInternal->coord_tp);
+                for (int ch=0; ch<2; ch++) tpAbort(&emcmotInternal->coord_tp[ch]);
                 reportError(_("Probe tripped during non-probe move."));
                 SET_MOTION_ERROR_FLAG(1);
             }
@@ -870,7 +927,7 @@ static void set_operating_mode(void)
     /* check for disabling */
     if (!emcmotInternal->enabling && GET_MOTION_ENABLE_FLAG()) {
 	/* clear out the motion emcmotInternal->coord_tp and interpolators */
-	tpClear(&emcmotInternal->coord_tp);
+	for (int ch=0; ch<2; ch++) tpClear(&emcmotInternal->coord_tp[ch]);
 	for (joint_num = 0; joint_num < ALL_JOINTS; joint_num++) {
 	    /* point to joint data */
 	    joint = &joints[joint_num];
@@ -904,7 +961,7 @@ static void set_operating_mode(void)
             *(emcmot_hal_data->eoffset_limited) = 0;
         }
         axis_initialize_external_offsets();
-        tpSetPos(&emcmotInternal->coord_tp, &emcmotStatus->carte_pos_cmd);
+        for (int ch=0; ch<2; ch++) tpSetPos(&emcmotInternal->coord_tp[ch], &emcmotStatus->carte_pos_cmd);
 	for (joint_num = 0; joint_num < ALL_JOINTS; joint_num++) {
 	    /* point to joint data */
 	    joint = &joints[joint_num];
@@ -932,7 +989,7 @@ static void set_operating_mode(void)
 	if (GET_MOTION_INPOS_FLAG()) {
 
 	    /* update coordinated emcmotInternal->coord_tp position */
-	    tpSetPos(&emcmotInternal->coord_tp, &emcmotStatus->carte_pos_cmd);
+	    for (int ch=0; ch<2; ch++) tpSetPos(&emcmotInternal->coord_tp[ch], &emcmotStatus->carte_pos_cmd);
 	    /* drain the cubics so they'll synch up */
 	    for (joint_num = 0; joint_num < EMCMOT_MAX_JOINTS; joint_num++) {
 		if (joint_num < NO_OF_KINS_JOINTS) {
@@ -984,7 +1041,7 @@ static void set_operating_mode(void)
                 // subtract at coord mode start
                 axis_apply_ext_offsets_to_carte_pos(-1, pcmd_p);
 
-		tpSetPos(&emcmotInternal->coord_tp, &emcmotStatus->carte_pos_cmd);
+		for (int ch=0; ch<2; ch++) tpSetPos(&emcmotInternal->coord_tp[ch], &emcmotStatus->carte_pos_cmd);
 		/* drain the cubics so they'll synch up */
 		for (joint_num = 0; joint_num < NO_OF_KINS_JOINTS; joint_num++) {
 		    /* point to joint data */
@@ -1336,91 +1393,90 @@ static void get_pos_cmds(long period)
         /* end of FREE mode */
 	break;
 
-    case EMCMOT_MOTION_COORD:
-        axis_jog_abort_all(1);
+        case EMCMOT_MOTION_COORD:
+            axis_jog_abort_all(1);
 
-	/* check joint 0 to see if the interpolators are empty */
-	coord_cubic_active = 1;
-	while (cubicNeedNextPoint(&(joints[0].cubic))) {
-	    /* they're empty, pull next point(s) off Cartesian planner */
-	    /* run coordinated trajectory planning cycle */
+            joint_owner_init_default();   // MVP default: everything belongs to CH1 unless you change it
 
-	    tpRunCycle(&emcmotInternal->coord_tp, period);
-            /* get new commanded traj pos */
-            tpGetPos(&emcmotInternal->coord_tp, &emcmotStatus->carte_pos_cmd);
+            coord_cubic_active = 1;
 
-            if (axis_update_coord_with_bound(pcmd_p, servo_period)) {
-                ext_offset_coord_limit = 1;
-            } else {
-                ext_offset_coord_limit = 0;
+            // Pull points for each channel independently while its owned joints need them
+            for (int ch = 1; ch <= 2; ch++) {
+
+                // NOTE: We reuse emcmotStatus->carte_pos_cmd as a temp.
+                // True Siemens-style would need per-channel carte_pos_cmd in status.
+                while (anyOwnedNeedNextPoint(ch)) {
+
+                    TP_STRUCT *tp = &emcmotInternal->coord_tp[ch-1];
+
+                    tpRunCycle(tp, period);
+
+                    // get new commanded traj pos for this channel
+                    tpGetPos(tp, &emcmotStatus->carte_pos_cmd);
+
+                    // External offsets: MVP applies to CH1 only (because axis_update_coord_with_bound mutates global pcmd_p/status)
+                    if (ch == 1) {
+                        if (axis_update_coord_with_bound(pcmd_p, servo_period)) {
+                            ext_offset_coord_limit = 1;
+                        } else {
+                            ext_offset_coord_limit = 0;
+                        }
+                    }
+
+                    // OUTPUT KINEMATICS - convert to joints in local array
+                    result = kinematicsInverse(&emcmotStatus->carte_pos_cmd, positions, &iflags, &fflags);
+                    if (result != 0) {
+                        reportError(_("kinematicsInverse failed"));
+                        SET_MOTION_ERROR_FLAG(1);
+                        emcmotInternal->enabling = 0;
+                        break;
+                    }
+
+                    // Copy ONLY owned joints and add cubic points
+                    for (joint_num = 0; joint_num < NO_OF_KINS_JOINTS; joint_num++) {
+                        if (!g_joint_owner_ch || g_joint_owner_ch[joint_num] != ch) continue;
+
+                        if (!isfinite(positions[joint_num])) {
+                            reportError(_("kinematicsInverse gave non-finite joint location on joint %d"),
+                                        joint_num);
+                            SET_MOTION_ERROR_FLAG(1);
+                            emcmotInternal->enabling = 0;
+                            break;
+                        }
+
+                        joint = &joints[joint_num];
+                        joint->coarse_pos = positions[joint_num];
+                        cubicAddPoint(&(joint->cubic), joint->coarse_pos);
+                    }
+
+                    if (GET_MOTION_ERROR_FLAG()) break;
+                }
+
+                if (GET_MOTION_ERROR_FLAG()) break;
+            } // for ch
+
+            // Interpolate all joints
+            for (joint_num = 0; joint_num < NO_OF_KINS_JOINTS; joint_num++) {
+                joint = &joints[joint_num];
+                joint->pos_cmd = cubicInterpolate(&(joint->cubic), 0,
+                                                  &(joint->vel_cmd), &(joint->acc_cmd), &(joint->jerk_cmd));
             }
 
-	    /* OUTPUT KINEMATICS - convert to joints in local array */
-	    result = kinematicsInverse(&emcmotStatus->carte_pos_cmd, positions,
-		&iflags, &fflags);
-	    if(result == 0)
-	    {
-		/* copy to joint structures and spline them up */
-		for (joint_num = 0; joint_num < NO_OF_KINS_JOINTS; joint_num++) {
-		    if(!isfinite(positions[joint_num]))
-		    {
-                       reportError(_("kinematicsInverse gave non-finite joint location on joint %d"),
-                           joint_num);
-                       SET_MOTION_ERROR_FLAG(1);
-                       emcmotInternal->enabling = 0;
-                       break;
-		    }
-		    /* point to joint struct */
-		    joint = &joints[joint_num];
-		    joint->coarse_pos = positions[joint_num];
-		    /* spline joints up-- note that we may be adding points
-		       that fail soft limits, but we'll abort at the end of
-		       this cycle so it doesn't really matter */
-		    cubicAddPoint(&(joint->cubic), joint->coarse_pos);
-		}
-	    }
-	    else
-	    {
-	       reportError(_("kinematicsInverse failed"));
-	       SET_MOTION_ERROR_FLAG(1);
-	       emcmotInternal->enabling = 0;
-	       break;
-	    }
+            // Accurate jerk values from TP output: MVP uses CH1 data only (status fields are single-channel)
+            if (emcmotStatus->planner_type == 1) {
+                double path_jerk = emcmotStatus->current_jerk;
+                PmCartesian dir = emcmotStatus->current_dir;
+                if (NO_OF_KINS_JOINTS >= 1) joints[0].jerk_cmd = path_jerk * dir.x;
+                if (NO_OF_KINS_JOINTS >= 2) joints[1].jerk_cmd = path_jerk * dir.y;
+                if (NO_OF_KINS_JOINTS >= 3) joints[2].jerk_cmd = path_jerk * dir.z;
+            }
 
-	    /* END OF OUTPUT KINS */
-	} // while
-	/* there is data in the interpolators */
-	/* run interpolation */
-	for (joint_num = 0; joint_num < NO_OF_KINS_JOINTS; joint_num++) {
-	    /* point to joint struct */
-	    joint = &joints[joint_num];
-	    /* interpolate to get new position and velocity */
-		joint->pos_cmd = cubicInterpolate(&(joint->cubic), 0, &(joint->vel_cmd), &(joint->acc_cmd),  &(joint->jerk_cmd));
-	}
-
-	/* Use accurate jerk values from TP output (for Cartesian machines only)
-	 * For standard XYZ machines, joint[0-2] correspond to X, Y, Z axes
-	 * TP outputs: current_jerk (path jerk) and current_dir (direction unit vector)
-	 * Per-axis jerk = path_jerk * direction_component
-	 */
-	if (emcmotStatus->planner_type == 1) {
-	    // S-curve mode: use accurate jerk values
-	    double path_jerk = emcmotStatus->current_jerk;
-	    PmCartesian dir = emcmotStatus->current_dir;
-
-	    // For the first 3 joints (assuming X, Y, Z), use accurate jerk
-	    if (NO_OF_KINS_JOINTS >= 1) joints[0].jerk_cmd = path_jerk * dir.x;
-	    if (NO_OF_KINS_JOINTS >= 2) joints[1].jerk_cmd = path_jerk * dir.y;
-	    if (NO_OF_KINS_JOINTS >= 3) joints[2].jerk_cmd = path_jerk * dir.z;
-	    // Rotary axes (A, B, C) keep the cubic interpolator values for now
-	}
-
-	/* report motion status */
-	SET_MOTION_INPOS_FLAG(0);
-	if (tpIsDone(&emcmotInternal->coord_tp)) {
-	    SET_MOTION_INPOS_FLAG(1);
-	}
-	break;
+            // report motion status: INPOS only if ALL channels are done
+            SET_MOTION_INPOS_FLAG(0);
+            if (tpIsDoneAll()) {
+                SET_MOTION_INPOS_FLAG(1);
+            }
+            break;
 
     case EMCMOT_MOTION_TELEOP:
         ext_offset_teleop_limit = axis_calc_motion(servo_period);
@@ -2197,21 +2253,29 @@ static void update_status(void)
        don't know how much is still needed, and how much is baggage.
     */
 
-    /* motion emcmotInternal->coord_tp status */
-    emcmotStatus->depth = tpQueueDepth(&emcmotInternal->coord_tp);
-    emcmotStatus->activeDepth = tpActiveDepth(&emcmotInternal->coord_tp);
-    emcmotStatus->id = tpGetExecId(&emcmotInternal->coord_tp);
-    //KLUDGE add an API call for this
-    emcmotStatus->reverse_run = emcmotInternal->coord_tp.reverse_run;
-    emcmotStatus->tag = tpGetExecTag(&emcmotInternal->coord_tp);
-    emcmotStatus->motionType = tpGetMotionType(&emcmotInternal->coord_tp);
-    emcmotStatus->queueFull = tcqFull(&emcmotInternal->coord_tp.queue);
+// motion coord_tp status (MVP)
+// Depth across channels:
+    emcmotStatus->depth = tpQueueDepthAny();
 
+// Active depth: take max across channels (or sum - your choice; max is usually more "capacity-like")
+    int ad = 0;
+    for (int ch=0; ch<2; ch++) {
+        int a = tpActiveDepth(&emcmotInternal->coord_tp[ch]);
+        if (a > ad) ad = a;
+    }
+    emcmotStatus->activeDepth = ad;
+
+// Exec/status fields: use CH1 as "primary channel" for now
+    emcmotStatus->id = tpGetExecId(&emcmotInternal->coord_tp[0]);
+    emcmotStatus->reverse_run = emcmotInternal->coord_tp[0].reverse_run;
+    emcmotStatus->tag = tpGetExecTag(&emcmotInternal->coord_tp[0]);
+    emcmotStatus->motionType = tpGetMotionType(&emcmotInternal->coord_tp[0]);
+    emcmotStatus->queueFull = tcqFull(&emcmotInternal->coord_tp[0].queue);
     /* check to see if we should pause in order to implement
        single emcmotStatus->stepping */
 
     if (emcmotStatus->stepping && emcmotInternal->idForStep != emcmotStatus->id) {
-      tpPause(&emcmotInternal->coord_tp);
+        for (int ch=0; ch<2; ch++)tpPause(&emcmotInternal->coord_tp[ch]);
       emcmotStatus->stepping = 0;
       emcmotStatus->paused = 1;
     }

@@ -178,7 +178,8 @@ extern "C" {
 	    EMCMOT_SET_AXIS_JERK_LIMIT,         /* set the max axis jerk */
 
         EMCMOT_SET_SPINDLE_PARAMS, /* One command to set all spindle params */
-
+        EMCMOT_AXIS_ACQUIRE,   /* GETD: assign named axis to channel */
+        EMCMOT_AXIS_RELEASE,   /* PUTD: release named axis from channel */
     } cmd_code_t;
 
 /* this enum lists the possible results of a command */
@@ -270,6 +271,7 @@ extern "C" {
     double ext_offset_vel;	/* velocity for an external axis offset */
     double ext_offset_acc;	/* acceleration for an external axis offset */
     struct state_tag_t tag;
+    int channel_id;
     } emcmot_command_t;
 
 /*! \todo FIXME - these packed bits might be replaced with chars
@@ -759,7 +761,7 @@ typedef struct emcmot_internal_t {
     int teleoperating;  /* starts up in free mode */
     int overriding;     /* non-zero means we've initiated an joint
                            move while overriding limits */
-    TP_STRUCT coord_tp; /* coordinated mode planner */
+    TP_STRUCT coord_tp[2]; /* coordinated mode planner */
     int idForStep;      /* status id while stepping */
     } emcmot_internal_t;
 
@@ -772,6 +774,16 @@ typedef struct emcmot_internal_t {
 
 #define GET_JOINT_ACTIVE_FLAG(joint) ((joint)->flag & EMCMOT_JOINT_ACTIVE_BIT ? 1 : 0)
 #define GET_JOINT_INPOS_FLAG(joint) ((joint)->flag & EMCMOT_JOINT_INPOS_BIT ? 1 : 0)
+
+#define MAX_NAMED_AXES 64
+typedef struct {
+    int defined;
+    int joint;        // physischer joint
+    int owner_ch;     // 0=frei, 1..2
+    int lock_count;   // optional
+} named_axis_rt_t;
+
+extern named_axis_rt_t named_axes[MAX_NAMED_AXES];
 
 #ifdef __cplusplus
 }

@@ -1,87 +1,59 @@
 
-[![Badge GPL2]][License]
-[![Badge LGPL]][License]
+Both channels can execute independent programs while sharing the same controller.
 
-<div align = center>
-
-<br>
-  
-# LinuxCNC
-  
-*Controlling CNC Machines*
-
-<br>
-  
-[![Badge Translation]][Translation]
-  
-<br>
-  
 ---
 
-[<kbd> <br> Ｗｅｂｓｉｔｅ <br> </kbd>][Website] 
-[<kbd> <br> Ｉｎｓｔａｌｌ <br> </kbd>][Ｉｎｓｔａｌｌ] 
-[<kbd> <br> Ｂｕｉｌｄ <br> </kbd>][Ｂｕｉｌｄ] 
-[<kbd> <br> Ｄｏｃｕｍｅｎｔａｔｉｏｎ <br> </kbd>][Ｄｏｃｕｍｅｎｔａｔｉｏｎ]  
-  
+# Current Development Status
+
+This project is **experimental** and under active development.
+
+Currently implemented:
+
+- multi trajectory planner support
+- channel-based motion execution
+- named axis infrastructure
+- axis ownership system
+- motion commands for axis acquire / release
+
+Planned features:
+
+- multi-channel G-code interpreter
+- channel synchronization primitives
+- UI support for multiple channels
+- channel aware HAL signals
+- program scheduling and synchronization
+
 ---
 
-<br>
-  
-It can drive milling machines, lathes, 3D printers, laser <br>
-cutters, plasma cutters, robot arms, hexapods, and more.
+# Why This Project Exists
 
-LinuxCNC was initiated 25 years ago and evolved into a very <br>
-international project with contributions from all over the globe.
-  
-With release 2.9 of LinuxCNC we also transitioned the <br>
-documentation to the use of the public crowd translation <br>
-services [Weblate] and invite all our users to contribute.
-  
-The translations we expect to help attract practitioners <br>
-to the project and also helps educating enthusiasts of <br>
-all age groups on automated machining.
+LinuxCNC is extremely powerful but currently limited to **single-channel execution**.
 
-<br>
+Many modern CNC machines require:
 
-## DISCLAIMER
-  
-<br>
+- parallel machining processes
+- multiple tool carriers
+- coordinated spindle handoff
+- simultaneous machining operations
 
-```
-  
-Ｔｈｅ ａｕｔｈｏｒｓ ｏｆ ｔｈｉｓ ｓｏｆｔｗａｒｅ ａｃｃｅｐｔ
-ａｂｓｏｌｕｔｅｌｙ ｎｏ ｌｉａｂｉｌｉｔｙ ｆｏｒ ａｎｙ
-ｈａｒｍ　ｏｒ ｌｏｓｓ ｒｅｓｕｌｔｉｎｇ ｆｒｏｍ ｉｔｓ ｕｓｅ．
+This fork explores how LinuxCNC can evolve into a **true multi-channel CNC control platform**.
 
-Ｉｔ ｉｓ ＥＸＴＲＥＭＥＬＹ ｕｎｗｉｓｅ ｔｏ　ｒｅｌｙ
-ｏｎ ｓｏｆｔｗａｒｅ ａｌｏｎｅ ｆｏｒ ｓａｆｅｔｙ．
+---
 
-Any machinery capable of harming persons must have
-provisions for completely removing power from all
-motors, etc., before persons enter any danger area.
+# Contributing
 
-All machinery must be designed to comply with local 
-and national safety codes, and the authors of this 
-software cannot and do not, take any responsibility 
-for such compliance.
-  
-```
+This project is experimental and contributions are welcome.
 
-<br>
-  
-</div>
+Areas of interest:
 
-<!----------------------------------------------------------------------------->
+- motion control architecture
+- interpreter extensions
+- real-time performance
+- UI integration
+- advanced CNC machine support
 
-[Badge Translation]: https://hosted.weblate.org/widgets/linuxcnc/-/svg-badge.svg
-[Badge GPL2]: https://img.shields.io/badge/Most-LGPL_3-blue.svg?style=for-the-badge 'The license this software is under'
-[Badge LGPL]: https://img.shields.io/badge/Some-GPL_2-blue.svg?style=for-the-badge 'Some parts are under this license'
+---
 
-[Translation]: https://hosted.weblate.org/engage/linuxcnc/
-[Weblate]: https://hosted.weblate.org/projects/linuxcnc/
-[Website]: https://linuxcnc.org/
+# License
 
-[Ｄｏｃｕｍｅｎｔａｔｉｏｎ]: http://linuxcnc.org/docs/devel/html/
-[Ｉｎｓｔａｌｌ]: http://linuxcnc.org/docs/devel/html/getting-started/getting-linuxcnc.html
-[Ｂｕｉｌｄ]: http://linuxcnc.org/docs/devel/html/code/building-linuxcnc.html
-[License]: COPYING
+This project remains licensed under the **GNU General Public License v2**, following the licensing of the original LinuxCNC project.
