@@ -3756,6 +3756,76 @@ int Interp::restore_from_tag(StateTag const &tag)
 
 /****************************************************************************/
 
+int Interp::axis_index_from_name(const char *name)
+{
+    if (!name || !name[0]) return -1;
+    const char *p = name;
+    if (*p == '"') p++;
+
+    char c = tolower(*p);
+    switch(c) {
+        case 'x': return 0;
+        case 'y': return 1;
+        case 'z': return 2;
+        case 'a': return 3;
+        case 'b': return 4;
+        case 'c': return 5;
+        case 'u': return 6;
+        case 'v': return 7;
+        case 'w': return 8;
+    }
+    return -1;
+}
+
+int Interp::convert_get(block_pointer block, setup_pointer settings)
+{
+    int axis = axis_index_from_name(block->get_axis);
+    if (axis == -1) {
+        ERS(_("Unknown axis name in GET: %s"), block->get_axis);
+    }
+    printf("convert_get: axis=%s (%d)\n", block->get_axis, axis);
+    AXIS_ACQUIRE(axis, 0); // force = 0
+    return INTERP_EXECUTE_FINISH;
+}
+
+int Interp::convert_getd(block_pointer block, setup_pointer settings)
+{
+    int axis = axis_index_from_name(block->getd_axis);
+    if (axis == -1) {
+        ERS(_("Unknown axis name in GETD: %s"), block->getd_axis);
+    }
+    printf("convert_getd: axis=%s (%d)\n", block->getd_axis, axis);
+    AXIS_ACQUIRE(axis, 1); // force = 1
+    return INTERP_EXECUTE_FINISH;
+}
+
+int Interp::convert_start(block_pointer block, setup_pointer settings)
+{
+    CHKS((block->start_channel < 1 || block->start_channel > 2), NCE_INVALID_CHANNEL_NUMBER_FOR_START);
+    printf("convert_start: channel=%d\n", block->start_channel);
+    TASK_START_CHANNEL(block->start_channel);
+    return INTERP_EXECUTE_FINISH;
+  }
+
+  int Interp::convert_init(block_pointer block, setup_pointer settings)
+  {
+    CHKS((block->init_channel < 1 || block->init_channel > 2), NCE_INVALID_CHANNEL_NUMBER_FOR_INIT);
+    printf("convert_init: channel=%d, program='%s'\n", block->init_channel, block->init_program);
+    INIT_PROGRAM(block->init_channel, block->init_program);
+    return INTERP_EXECUTE_FINISH;
+  }
+
+int Interp::convert_release(block_pointer block, setup_pointer settings)
+{
+    int axis = axis_index_from_name(block->release_axis);
+    if (axis == -1) {
+        ERS(_("Unknown axis name in RELEASE: %s"), block->release_axis);
+    }
+    printf("convert_release: axis=%s (%d)\n", block->release_axis, axis);
+    AXIS_RELEASE(axis);
+    return INTERP_OK;
+}
+
 /*! convert_m
 
 Returned Value: int

@@ -300,6 +300,23 @@ int Interp::execute_block(block_pointer block,   //!< pointer to a block of RS27
 	  CHP(convert_tool_select(block, settings));
       }
   }
+
+  if (block->get_flag && ONCE(STEP_GET)) {
+      CHP(convert_get(block, settings));
+  }
+  if (block->getd_flag && ONCE(STEP_GETD)) {
+      CHP(convert_getd(block, settings));
+  }
+  if (block->start_flag && ONCE(STEP_START)) {
+      CHP(convert_start(block, settings));
+  }
+  if (block->init_flag && ONCE(STEP_INIT)) {
+      CHP(convert_init(block, settings));
+  }
+  if (block->release_flag && ONCE(STEP_RELEASE)) {
+      CHP(convert_release(block, settings));
+  }
+
   CHP(convert_m(block, settings));
   CHP(convert_g(block, settings));
   /* convert m0, m1, m2, m30, m60, or (when main program loops disabled) m99 */

@@ -360,6 +360,11 @@ enum phases  {
     STEP_RETRACT_MODE,
     STEP_MODAL_0,
     STEP_G92_IS_APPLIED,
+    STEP_GET,
+    STEP_RELEASE,
+    STEP_GETD,
+    STEP_START,
+    STEP_INIT,
     STEP_MOTION,
     STEP_MGROUP4,
     MAX_STEPS
@@ -428,6 +433,17 @@ typedef int_remap_map::iterator int_remap_iterator;
 struct block_struct
 {
   char comment[256]{};
+  char get_axis[16]{};
+  bool get_flag{};
+  char release_axis[16]{};
+  bool release_flag{};
+  char getd_axis[16]{};
+  bool getd_flag{};
+  int start_channel{};
+  bool start_flag{};
+  int init_channel{};
+  char init_program[256]{};
+  bool init_flag{};
   double a_number{};
   double b_number{};
   double c_number{};

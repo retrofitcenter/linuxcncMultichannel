@@ -25,6 +25,9 @@
 #include <hal.h>
 #include <posemath.h>
 #include <kinematics.h>  //for kinematicsSwitchable()
+/* weak declarations for optional switchable kinematics */
+extern int kinematicsSwitchable(void) __attribute__((weak));
+extern int kinematicsSwitch(int) __attribute__((weak));
 #include <motion_types.h>
 
 #include "../tp/tp.h"
@@ -34,7 +37,7 @@
 #include "config.h"
 #include "homing.h"
 #include "axis.h"
-#include "axis_own.h"   // damit wir g_joint_owner_ch setzen können
+#include "axis_own.h"
 
 // Mark strings for translation, but defer translation to userspace
 #define _(s) (s)
@@ -354,7 +357,7 @@ static void handle_kinematicsSwitch(void) {
     int joint_num;
     int hal_switchkins_type = 0;
 
-    if (!kinematicsSwitchable()) return;
+    if (kinematicsSwitchable == NULL || !kinematicsSwitchable()) return;
     hal_switchkins_type = (int)*emcmot_hal_data->switchkins_type;
     if (switchkins_type == hal_switchkins_type) return;
 
@@ -370,7 +373,7 @@ static void handle_kinematicsSwitch(void) {
         joint_posKinsSwitch[joint_num] = jointKinsSwitch->pos_cmd;
     }
 
-    if (kinematicsSwitch(switchkins_type)) {
+    if (kinematicsSwitch && kinematicsSwitch(switchkins_type)) {
         rtapi_print_msg(RTAPI_MSG_ERR,"kinematicsSwitch() FAIL<%f>\n",
                         *emcmot_hal_data->switchkins_type);
         SET_MOTION_ERROR_FLAG(1);  // abort
@@ -2219,6 +2222,7 @@ static void update_status(void)
         axis_status->teleop_vel_cmd = axis_get_teleop_vel_cmd(axis_num);
         axis_status->max_pos_limit = axis_get_max_pos_limit(axis_num);
         axis_status->min_pos_limit = axis_get_min_pos_limit(axis_num);
+        axis_status->owner_ch = axis_get_owner_ch(axis_num);
     }
     emcmotStatus->eoffset_pose.tran.x = axis_get_ext_offset_curr_pos(0);
     emcmotStatus->eoffset_pose.tran.y = axis_get_ext_offset_curr_pos(1);

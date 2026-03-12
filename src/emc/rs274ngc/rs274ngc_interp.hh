@@ -434,7 +434,21 @@ int read_dollar(char *line, int *counter, block_pointer block,
  int read_f(char *line, int *counter, block_pointer block,
                   double *parameters);
  int read_g(char *line, int *counter, block_pointer block,
-                  double *parameters);
+                 double *parameters);
+ int read_get(char *line, int *counter, block_pointer block,
+               double *parameters);
+  int read_getd(char *line, int *counter, block_pointer block,
+                double *parameters);
+  int read_start(char *line, int *counter, block_pointer block,
+                double *parameters);
+  int read_init(char *line, int *counter, block_pointer block,
+                double *parameters);
+  int read_release(char *line, int *counter, block_pointer block,
+                   double *parameters);
+ int read_string_inside_parentheses(char *line, int *counter,
+                 char *target, int max_len);
+ int read_quoted_string(char *line, int *counter,
+                 char *target, int max_len);
  int read_h(char *line, int *counter, block_pointer block,
                   double *parameters);
  int read_i(char *line, int *counter, block_pointer block,
@@ -652,6 +666,12 @@ int read_inputs(setup_pointer settings);
 
 
  int convert_straight_indexer(int anum, int jnum, block* blk, setup* settings);
+ int convert_get(block_pointer block, setup_pointer settings);
+ int convert_getd(block_pointer block, setup_pointer settings);
+ int convert_start(block_pointer block, setup_pointer settings);
+ int convert_init(block_pointer block, setup_pointer settings);
+ int convert_release(block_pointer block, setup_pointer settings);
+ int axis_index_from_name(const char *name);
  int issue_straight_index(int anum, int jnum, double end, int lineno, setup* settings);
 
  void doLog(unsigned int flags, const char *file, int line,

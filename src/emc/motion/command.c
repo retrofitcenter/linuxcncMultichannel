@@ -77,7 +77,6 @@
 #define _(s) (s)
 
 extern int motion_num_spindles;
-extern int joint_owner_ch[EMCMOT_MAX_JOINTS];
 
 static int rehomeAll;
 
@@ -1942,6 +1941,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
         case EMCMOT_AXIS_ACQUIRE: {
             int ch = emcmotCommand->channel_id;   // channel
             int ax = emcmotCommand->axis;    // named axis index
+            int force = emcmotCommand->force;
 
             if (ch < 0 || ch > 1 || ax < 0 || ax >= MAX_NAMED_AXES || !named_axes[ax].defined) {
                 emcmotStatus->commandStatus = EMCMOT_COMMAND_INVALID_PARAMS;
@@ -1949,15 +1949,24 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                 break;
             }
 
-            int joint = named_axes[ax].joint;
-
-            if (joint < 0 || joint >= ALL_JOINTS) {
+            int joint_num = named_axes[ax].joint;
+            if (joint_num < 0 || joint_num >= ALL_JOINTS) {
                 emcmotStatus->commandStatus = EMCMOT_COMMAND_INVALID_PARAMS;
                 reportError("AXIS_ACQUIRE invalid joint mapping ax=%d", ax);
                 break;
             }
 
-            if (named_axes[ax].owner_ch == 0 || named_axes[ax].owner_ch == ch) {
+            emcmot_joint_t *joint = &joints[joint_num];
+
+            if (named_axes[ax].owner_ch == 0 || named_axes[ax].owner_ch == ch || force) {
+
+                if (force && named_axes[ax].owner_ch != 0 && named_axes[ax].owner_ch != ch) {
+                    if (joint->flag & EMCMOT_JOINT_ACTIVE_BIT) {
+                         emcmotStatus->commandStatus = EMCMOT_COMMAND_INVALID_COMMAND;
+                         reportError("AXIS_ACQUIRE force fail: axis %d is busy moving", ax);
+                         break;
+                    }
+                }
 
                 named_axes[ax].owner_ch = ch;
 
@@ -1965,16 +1974,14 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                     named_axes[ax].lock_count++;
 
                 /* CRITICAL PART */
-                joint_owner_ch[joint] = ch;
+                if (g_joint_owner_ch) g_joint_owner_ch[joint_num] = ch;
 
                 emcmotStatus->commandStatus = EMCMOT_COMMAND_OK;
 
             } else {
-
-                emcmotStatus->commandStatus = EMCMOT_COMMAND_INVALID_COMMAND;
-
-                reportError("AXIS_ACQUIRE busy ax=%d owned by ch=%d",
-                            ax, named_axes[ax].owner_ch);
+                // GET wartet: Keinen Fehler melden, aber wir bleiben Besitzerlos für den neuen Kanal
+                // Task wird in emctaskmain.cc auf owner_ch == ch prüfen
+                emcmotStatus->commandStatus = EMCMOT_COMMAND_OK; 
             }
             axis_rebuild_joint_owner_map(emcmotConfig->numJoints);
             break;
@@ -1984,7 +1991,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
 
             int ch = emcmotCommand->channel_id;
             int ax = emcmotCommand->axis;
-            rtapi_print_msg(RTAPI_MSG_ERR, "AXIS_ACQUIRE: ch=%d axis=%d\n", ch, ax);
+            rtapi_print_msg(RTAPI_MSG_DBG, "AXIS_RELEASE: ch=%d axis=%d\n", ch, ax);
             if (ch < 0 || ch > 1 || ax < 0 || ax >= MAX_NAMED_AXES || !named_axes[ax].defined) {
                 emcmotStatus->commandStatus = EMCMOT_COMMAND_INVALID_PARAMS;
                 reportError("AXIS_RELEASE invalid params ch=%d ax=%d", ch, ax);
@@ -2010,7 +2017,7 @@ void emcmotCommandHandler_locked(void *arg, long servo_period)
                 named_axes[ax].owner_ch = 0;
 
                 /* give axis back to default channel */
-                joint_owner_ch[joint] = 1;
+                if (g_joint_owner_ch) g_joint_owner_ch[joint] = 1;
             }
             axis_rebuild_joint_owner_map(emcmotConfig->numJoints);
             emcmotStatus->commandStatus = EMCMOT_COMMAND_OK;

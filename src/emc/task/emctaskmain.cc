@@ -811,6 +811,7 @@ static int emcTaskPlan(void)
 	    case EMC_TASK_SET_STATE_TYPE:
 	    case EMC_TASK_PLAN_INIT_TYPE:
 	    case EMC_TASK_PLAN_OPEN_TYPE:
+	    case EMC_TASK_INIT_CHANNEL_TYPE:
 	    case EMC_TASK_PLAN_CLOSE_TYPE:
 	    case EMC_TASK_PLAN_SET_OPTIONAL_STOP_TYPE:
 	    case EMC_TASK_PLAN_SET_BLOCK_DELETE_TYPE:
@@ -933,6 +934,10 @@ static int emcTaskPlan(void)
 	    case EMC_TASK_SET_STATE_TYPE:
 	    case EMC_TASK_ABORT_TYPE:
 	    case EMC_TASK_PLAN_OPEN_TYPE:
+	    case EMC_TASK_INIT_CHANNEL_TYPE:
+	    case EMC_TASK_START_CHANNEL_TYPE:
+	    case EMC_AXIS_ACQUIRE_TYPE:
+	    case EMC_AXIS_RELEASE_TYPE:
 	    case EMC_TASK_PLAN_CLOSE_TYPE:
 	    case EMC_TASK_PLAN_PAUSE_TYPE:
 		case EMC_TASK_PLAN_REVERSE_TYPE:
@@ -1022,6 +1027,10 @@ static int emcTaskPlan(void)
 
 		    // immediate commands
 
+		case EMC_AXIS_ACQUIRE_TYPE:
+		case EMC_AXIS_RELEASE_TYPE:
+		case EMC_TASK_INIT_CHANNEL_TYPE:
+		case EMC_TASK_START_CHANNEL_TYPE:
 		case EMC_JOINT_SET_BACKLASH_TYPE:
 		case EMC_JOINT_SET_HOMING_PARAMS_TYPE:
 		case EMC_JOINT_SET_FERROR_TYPE:
@@ -1071,6 +1080,7 @@ static int emcTaskPlan(void)
 		case EMC_AUX_INPUT_WAIT_TYPE:
 		case EMC_TRAJ_RIGID_TAP_TYPE:
 		case EMC_SET_DEBUG_TYPE:
+		case EMC_TASK_PLAN_SYNCH_TYPE:
 		    retval = emcTaskIssueCommand(emcCommand);
 		    break;
 
@@ -1133,6 +1143,10 @@ static int emcTaskPlan(void)
 
 		    // immediate commands
 
+		case EMC_AXIS_ACQUIRE_TYPE:
+		case EMC_AXIS_RELEASE_TYPE:
+		case EMC_TASK_INIT_CHANNEL_TYPE:
+		case EMC_TASK_START_CHANNEL_TYPE:
 		case EMC_JOINT_SET_BACKLASH_TYPE:
 		case EMC_JOINT_SET_HOMING_PARAMS_TYPE:
 		case EMC_JOINT_SET_FERROR_TYPE:
@@ -1166,6 +1180,7 @@ static int emcTaskPlan(void)
 		case EMC_AUX_INPUT_WAIT_TYPE:
 		case EMC_TRAJ_RIGID_TAP_TYPE:
 		case EMC_SET_DEBUG_TYPE:
+		case EMC_TASK_PLAN_SYNCH_TYPE:
                 case EMC_COOLANT_MIST_ON_TYPE:
                 case EMC_COOLANT_MIST_OFF_TYPE:
                 case EMC_COOLANT_FLOOD_ON_TYPE:
@@ -1202,6 +1217,10 @@ static int emcTaskPlan(void)
 
 		    // immediate commands
 
+		case EMC_AXIS_ACQUIRE_TYPE:
+		case EMC_AXIS_RELEASE_TYPE:
+		case EMC_TASK_INIT_CHANNEL_TYPE:
+		case EMC_TASK_START_CHANNEL_TYPE:
 		case EMC_JOINT_SET_BACKLASH_TYPE:
 		case EMC_JOINT_SET_HOMING_PARAMS_TYPE:
 		case EMC_JOINT_SET_FERROR_TYPE:
@@ -1247,6 +1266,7 @@ static int emcTaskPlan(void)
 		case EMC_AUX_INPUT_WAIT_TYPE:
 		case EMC_TRAJ_RIGID_TAP_TYPE:
 		case EMC_SET_DEBUG_TYPE:
+		case EMC_TASK_PLAN_SYNCH_TYPE:
 		    retval = emcTaskIssueCommand(emcCommand);
 		    break;
 
@@ -1285,6 +1305,10 @@ static int emcTaskPlan(void)
 
 		    // immediate commands
 
+		case EMC_AXIS_ACQUIRE_TYPE:
+		case EMC_AXIS_RELEASE_TYPE:
+		case EMC_TASK_INIT_CHANNEL_TYPE:
+		case EMC_TASK_START_CHANNEL_TYPE:
 		case EMC_JOINT_SET_BACKLASH_TYPE:
 		case EMC_JOINT_SET_HOMING_PARAMS_TYPE:
 		case EMC_JOINT_SET_FERROR_TYPE:
@@ -1319,6 +1343,7 @@ static int emcTaskPlan(void)
 		case EMC_AUX_INPUT_WAIT_TYPE:
 	        case EMC_TRAJ_RIGID_TAP_TYPE:
 		case EMC_SET_DEBUG_TYPE:
+		case EMC_TASK_PLAN_SYNCH_TYPE:
                 case EMC_COOLANT_MIST_ON_TYPE:
                 case EMC_COOLANT_MIST_OFF_TYPE:
                 case EMC_COOLANT_FLOOD_ON_TYPE:
@@ -1364,6 +1389,10 @@ static int emcTaskPlan(void)
 
 		// immediate commands
 
+	    case EMC_AXIS_ACQUIRE_TYPE:
+	    case EMC_AXIS_RELEASE_TYPE:
+	    case EMC_TASK_INIT_CHANNEL_TYPE:
+	    case EMC_TASK_START_CHANNEL_TYPE:
 	    case EMC_JOINT_SET_BACKLASH_TYPE:
 	    case EMC_JOINT_SET_HOMING_PARAMS_TYPE:
 	    case EMC_JOINT_SET_FERROR_TYPE:
@@ -1847,6 +1876,122 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	retval = emcTrajResume();
 	break;
 
+    case EMC_AXIS_ACQUIRE_TYPE:
+	retval = emcAxisAcquire(((EMC_AXIS_ACQUIRE *) cmd)->axis,
+				((EMC_AXIS_ACQUIRE *) cmd)->force);
+	break;
+
+    case EMC_AXIS_RELEASE_TYPE:
+	retval = emcAxisRelease(((EMC_AXIS_RELEASE *) cmd)->axis);
+	break;
+
+    case EMC_TASK_START_CHANNEL_TYPE:
+      {
+          int target = ((EMC_TASK_START_CHANNEL *) cmd)->target_channel;
+          fprintf(stderr, "emcTaskIssueCommand: EMC_TASK_START_CHANNEL target=%d (current mode=%d)\n", target, (int)emcStatus->task.mode);
+          if (target == emcStatus->task.channel_id) {
+              if (emcStatus->task.mode != EMC_TASK_MODE::AUTO) {
+                  emcTaskSetMode(EMC_TASK_MODE::AUTO);
+              }
+              if (!all_homed() && !no_force_homing) {
+                  emcOperatorError(_("Can't run a program when not homed"));
+                  retval = -1;
+                  break;
+              }
+              emcStatus->motion.traj.single_stepping = 0;
+              stepping = 0;
+              steppingWait = 0;
+              if (!taskplanopen && emcStatus->task.file[0] != 0) {
+                  emcTaskPlanOpen(emcStatus->task.file);
+              }
+              programStartLine = 0;
+              emcStatus->task.interpState = EMC_TASK_INTERP::READING;
+              emcStatus->task.task_paused = 0;
+              retval = 0;
+          } else {
+              // Start other channel via NML
+              char buf[32];
+              snprintf(buf, 32, "emcCommand%d", target);
+            RCS_CMD_CHANNEL *other_cmd = new RCS_CMD_CHANNEL(emcFormat, buf, "emc", emc_nmlfile);
+            if (other_cmd && other_cmd->valid()) {
+                fprintf(stderr, "emcTaskIssueCommand: Sending START to remote channel %d via %s\n", target, buf);
+
+                EMC_TASK_SET_MODE mode_msg;
+                mode_msg.mode = EMC_TASK_MODE::AUTO;
+                if (other_cmd->write(&mode_msg) < 0)
+                    fprintf(stderr, "emcTaskIssueCommand: Error writing mode_msg to %s\n", buf);
+
+                EMC_TASK_PLAN_RUN run_msg;
+                run_msg.line = 0;
+                if (other_cmd->write(&run_msg) < 0)
+                    fprintf(stderr, "emcTaskIssueCommand: Error writing run_msg to %s\n", buf);
+
+                fprintf(stderr, "emcTaskIssueCommand: START sent to channel %d, deleting channel object\n", target);
+                delete other_cmd;
+                retval = 0;
+            } else {
+                fprintf(stderr, "emcTaskIssueCommand: ERROR: Could not open NML channel %s for remote START\n", buf);
+                if (other_cmd) delete other_cmd;
+                retval = -1;
+            }
+          }
+      }
+      break;
+
+    case EMC_TASK_INIT_CHANNEL_TYPE:
+      {
+          int target = ((EMC_TASK_INIT_CHANNEL *) cmd)->target_channel;
+          const char *program = ((EMC_TASK_INIT_CHANNEL *) cmd)->program;
+          fprintf(stderr, "emcTaskIssueCommand: EMC_TASK_INIT_CHANNEL target=%d, program='%s' (current mode=%d)\n", target, program, (int)emcStatus->task.mode);
+          if (target == emcStatus->task.channel_id) {
+              if (emcStatus->task.mode != EMC_TASK_MODE::AUTO) {
+                  emcTaskSetMode(EMC_TASK_MODE::AUTO);
+              }
+              retval = emcTaskPlanOpen(program);
+              if (retval > INTERP_MIN_ERROR) {
+                  retval = -1;
+              }
+              if (-1 == retval) {
+                  emcOperatorError(_("can't open %s"), program);
+              } else {
+                  rtapi_strxcpy(emcStatus->task.file, program);
+                  retval = 0;
+              }
+          } else {
+              // Init other channel via NML
+              char buf[32];
+              snprintf(buf, 32, "emcCommand%d", target);
+            RCS_CMD_CHANNEL *other_cmd = new RCS_CMD_CHANNEL(emcFormat, buf, "emc", emc_nmlfile);
+            if (other_cmd && other_cmd->valid()) {
+                fprintf(stderr, "emcTaskIssueCommand: Sending INIT to remote channel %d via %s, program='%s'\n", target, buf, program);
+
+                EMC_TASK_PLAN_OPEN open_msg;
+                strncpy(open_msg.file, program, 255);
+                open_msg.file[255] = '\0';
+                if (other_cmd->write(&open_msg) < 0)
+                    fprintf(stderr, "emcTaskIssueCommand: Error writing open_msg to %s\n", buf);
+
+                EMC_TASK_PLAN_INIT init_msg;
+                if (other_cmd->write(&init_msg) < 0)
+                    fprintf(stderr, "emcTaskIssueCommand: Error writing init_msg to %s\n", buf);
+
+                EMC_TASK_SET_MODE mode_msg;
+                mode_msg.mode = EMC_TASK_MODE::AUTO;
+                if (other_cmd->write(&mode_msg) < 0)
+                    fprintf(stderr, "emcTaskIssueCommand: Error writing mode_msg to %s\n", buf);
+
+                fprintf(stderr, "emcTaskIssueCommand: INIT sent to channel %d, deleting channel object\n", target);
+                delete other_cmd;
+                retval = 0;
+            } else {
+                fprintf(stderr, "emcTaskIssueCommand: ERROR: Could not open NML channel %s for remote INIT\n", buf);
+                if (other_cmd) delete other_cmd;
+                retval = -1;
+            }
+          }
+      }
+      break;
+
     case EMC_TRAJ_ABORT_TYPE:
 	retval = emcTrajAbort();
 	break;
@@ -2211,6 +2356,7 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	}
 
 	/* open local file */
+        fprintf(stderr, "Main Loop: EMC_TASK_PLAN_OPEN file='%s'\n", open_msg->file);
 	retval = emcTaskPlanOpen(open_msg->file);
 	if (retval > INTERP_MIN_ERROR) {
 	    retval = -1;
@@ -2218,6 +2364,7 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	if (-1 == retval) {
 	    emcOperatorError(_("can't open %s"), open_msg->file);
 	} else {
+            fprintf(stderr, "Main Loop: EMC_TASK_PLAN_OPEN successful, updating status.file to '%s'\n", open_msg->file);
 	    rtapi_strxcpy(emcStatus->task.file, open_msg->file);
 	    retval = 0;
 	}
@@ -2315,6 +2462,7 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	break;
 
     case EMC_TASK_PLAN_RUN_TYPE:
+        fprintf(stderr, "Main Loop: EMC_TASK_PLAN_RUN\n");
         if (!all_homed() && !no_force_homing) { //!no_force_homing = force homing before Auto
             emcOperatorError(_("Can't run a program when not homed"));
             retval = -1;
@@ -2380,6 +2528,7 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	break;
 
     case EMC_TASK_PLAN_INIT_TYPE:
+        fprintf(stderr, "Main Loop: EMC_TASK_PLAN_INIT\n");
 	retval = emcTaskPlanInit();
 	if (retval > INTERP_MIN_ERROR) {
 	    retval = -1;
@@ -2387,6 +2536,7 @@ static int emcTaskIssueCommand(NMLmsg * cmd)
 	break;
 
     case EMC_TASK_PLAN_SYNCH_TYPE:
+        fprintf(stderr, "Main Loop: EMC_TASK_PLAN_SYNCH\n");
 	retval = emcTaskPlanSynch();
 	if (retval > INTERP_MIN_ERROR) {
 	    retval = -1;
@@ -2495,6 +2645,8 @@ static EMC_TASK_EXEC emcTaskCheckPostconditions(NMLmsg * cmd)
     case EMC_TASK_PLAN_PAUSE_TYPE:
     case EMC_TASK_PLAN_END_TYPE:
     case EMC_TASK_PLAN_INIT_TYPE:
+    case EMC_TASK_INIT_CHANNEL_TYPE:
+    case EMC_TASK_START_CHANNEL_TYPE:
     case EMC_TASK_PLAN_SYNCH_TYPE:
     case EMC_TASK_PLAN_EXECUTE_TYPE:
     case EMC_TASK_PLAN_OPTIONAL_STOP_TYPE:
@@ -2503,6 +2655,14 @@ static EMC_TASK_EXEC emcTaskCheckPostconditions(NMLmsg * cmd)
 
     case EMC_SPINDLE_WAIT_ORIENT_COMPLETE_TYPE:
 	return EMC_TASK_EXEC::WAITING_FOR_SPINDLE_ORIENTED;
+	break;
+
+    case EMC_AXIS_ACQUIRE_TYPE:
+	return EMC_TASK_EXEC::WAITING_FOR_AXIS_ACQUIRE;
+	break;
+
+    case EMC_AXIS_RELEASE_TYPE:
+	return EMC_TASK_EXEC::DONE;
 	break;
 
     case EMC_TRAJ_DELAY_TYPE:
@@ -2733,6 +2893,25 @@ static int emcTaskExecute(void)
 						emcStatus->motion.spindle[n].orient_fault);
 			}
 		}
+	}
+	break;
+
+    case EMC_TASK_EXEC::WAITING_FOR_AXIS_ACQUIRE:
+	STEPPING_CHECK();
+	// Wir warten, bis wir Besitzer IRGENDEINER Achse sind, die wir angefordert haben.
+	// Da der Interpreter nur einen Befehl pro Block sendet, prüfen wir einfach alle Achsen.
+	{
+	    bool acquired = false;
+	    for (int i = 0; i < EMCMOT_MAX_AXIS; i++) {
+	        if (emcStatus->motion.axis[i].owner_ch == emcStatus->task.channel_id) {
+	            acquired = true;
+	            break;
+	        }
+	    }
+	    if (acquired) {
+	        emcStatus->task.execState = EMC_TASK_EXEC::DONE;
+	        emcTaskEager = 1;
+	    }
 	}
 	break;
 
@@ -3264,6 +3443,11 @@ static int iniLoad(const char *filename)
 	max_mdi_queued_commands = atoi(inistring->c_str());
     }
 
+    // channel ID for multi-channel support
+    if (auto inistring = inifile.Find("CHANNEL_ID", "TASK")) {
+	emc_task_channel_id = atoi(inistring->c_str());
+    }
+
     // close it
     inifile.Close();
 
@@ -3334,6 +3518,7 @@ int main(int argc, char *argv[])
     // get our status data structure
     // moved up from emc_startup so we can expose it in Python right away
     emcStatus = new EMC_STAT;
+    emcStatus->task.channel_id = emc_task_channel_id;
 
     // get the Python plugin going
 

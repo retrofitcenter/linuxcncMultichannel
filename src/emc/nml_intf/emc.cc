@@ -211,6 +211,12 @@ int emcFormat(NMLTYPE type, void *buffer, CMS * cms)
     case EMC_TASK_PLAN_SYNCH_TYPE:
 	((EMC_TASK_PLAN_SYNCH *) buffer)->update(cms);
 	break;
+    case EMC_TASK_START_CHANNEL_TYPE:
+	((EMC_TASK_START_CHANNEL *) buffer)->update(cms);
+	break;
+    case EMC_TASK_INIT_CHANNEL_TYPE:
+	((EMC_TASK_INIT_CHANNEL *) buffer)->update(cms);
+	break;
     case EMC_TASK_PLAN_SET_OPTIONAL_STOP_TYPE:
 	((EMC_TASK_PLAN_SET_OPTIONAL_STOP *) buffer)->update(cms);
 	break;
@@ -274,6 +280,12 @@ int emcFormat(NMLTYPE type, void *buffer, CMS * cms)
     case EMC_TRAJ_RIGID_TAP_TYPE:
 	((EMC_TRAJ_RIGID_TAP *) buffer)->update(cms);
         break;
+    case EMC_AXIS_ACQUIRE_TYPE:
+	((EMC_AXIS_ACQUIRE *) buffer)->update(cms);
+	break;
+    case EMC_AXIS_RELEASE_TYPE:
+	((EMC_AXIS_RELEASE *) buffer)->update(cms);
+	break;
     case EMC_TRAJ_PAUSE_TYPE:
 	((EMC_TRAJ_PAUSE *) buffer)->update(cms);
 	break;
@@ -745,6 +757,19 @@ void EMC_SPINDLE_OFF::update(CMS * cms)
 void EMC_TASK_PLAN_SYNCH::update(CMS * cms)
 {
     EMC_TASK_CMD_MSG::update(cms);
+}
+
+void EMC_TASK_START_CHANNEL::update(CMS * cms)
+{
+    EMC_TASK_CMD_MSG::update(cms);
+    cms->update(target_channel);
+}
+
+void EMC_TASK_INIT_CHANNEL::update(CMS * cms)
+{
+    EMC_TASK_CMD_MSG::update(cms);
+    cms->update(target_channel);
+    cms->update(program, 256);
 }
 
 /*
@@ -1285,6 +1310,7 @@ void EMC_AXIS_STAT::update(CMS * cms)
     cms->update(minPositionLimit);
     cms->update(maxPositionLimit);
     cms->update(velocity);
+    cms->update(owner_ch);
 }
 
 /*
@@ -1402,6 +1428,7 @@ void EMC_TASK_STAT::update(CMS * cms)
     cms->update(task_paused);
     cms->update(delayLeft);
     cms->update(queuedMDIcommands);
+    cms->update(channel_id);
 }
 
 /*
@@ -2128,6 +2155,18 @@ void EMC_MOTION_ADAPTIVE::update(CMS * cms)
     cms->update(status);
 }
 
+void EMC_AXIS_ACQUIRE::update(CMS * cms)
+{
+    EMC_TRAJ_CMD_MSG::update(cms);
+    cms->update(axis);
+    cms->update(force);
+}
+
+void EMC_AXIS_RELEASE::update(CMS * cms)
+{
+    EMC_TRAJ_CMD_MSG::update(cms);
+    cms->update(axis);
+}
 
 /*
 *	NML/CMS Update function for EMC_MOTION_CMD_MSG

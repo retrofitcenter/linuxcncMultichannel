@@ -170,6 +170,7 @@ class EMC_AXIS_STAT:public EMC_AXIS_STAT_MSG {
     double minPositionLimit;
     double maxPositionLimit;
     double velocity;		// current velocity
+    int owner_ch;		// owner channel
 };
 
 // declarations for EMC_JOINT classes
@@ -951,6 +952,38 @@ class EMC_TRAJ_RIGID_TAP:public EMC_TRAJ_CMD_MSG {
     double vel, ini_maxvel, acc, scale, ini_maxjerk;
 };
 
+class EMC_AXIS_ACQUIRE: public EMC_TRAJ_CMD_MSG {
+  public:
+    EMC_AXIS_ACQUIRE()
+      : EMC_TRAJ_CMD_MSG(EMC_AXIS_ACQUIRE_TYPE, sizeof(EMC_AXIS_ACQUIRE)),
+        axis(0),
+        force(0)
+    {};
+
+    // For internal NML/CMS use only.
+    // Sub-class update() calls base-class update()
+    // cppcheck-suppress duplInheritedMember
+    void update(CMS * cms);
+
+    int axis;
+    int force;
+};
+
+class EMC_AXIS_RELEASE: public EMC_TRAJ_CMD_MSG {
+  public:
+    EMC_AXIS_RELEASE()
+      : EMC_TRAJ_CMD_MSG(EMC_AXIS_RELEASE_TYPE, sizeof(EMC_AXIS_RELEASE)),
+        axis(0)
+    {};
+
+    // For internal NML/CMS use only.
+    // Sub-class update() calls base-class update()
+    // cppcheck-suppress duplInheritedMember
+    void update(CMS * cms);
+
+    int axis;
+};
+
 // EMC_TRAJ status base class
 class EMC_TRAJ_STAT_MSG:public RCS_STAT_MSG {
   public:
@@ -1301,6 +1334,38 @@ class EMC_TASK_PLAN_FORWARD:public EMC_TASK_CMD_MSG {
 
 };
 
+class EMC_TASK_START_CHANNEL:public EMC_TASK_CMD_MSG {
+  public:
+    EMC_TASK_START_CHANNEL()
+      : EMC_TASK_CMD_MSG(EMC_TASK_START_CHANNEL_TYPE, sizeof(EMC_TASK_START_CHANNEL)),
+        target_channel(0),
+        tag{}
+    {};
+
+    // For internal NML/CMS use only.
+    void update(CMS * cms);
+
+    int target_channel;
+    StateTag tag;
+};
+
+class EMC_TASK_INIT_CHANNEL:public EMC_TASK_CMD_MSG {
+  public:
+    EMC_TASK_INIT_CHANNEL()
+      : EMC_TASK_CMD_MSG(EMC_TASK_INIT_CHANNEL_TYPE, sizeof(EMC_TASK_INIT_CHANNEL)),
+        target_channel(0),
+        program{},
+        tag{}
+    {};
+
+    // For internal NML/CMS use only.
+    void update(CMS * cms);
+
+    int target_channel;
+    char program[256];
+    StateTag tag;
+};
+
 
 class EMC_TASK_PLAN_STEP:public EMC_TASK_CMD_MSG {
   public:
@@ -1471,6 +1536,7 @@ class EMC_TASK_STAT:public EMC_TASK_STAT_MSG {
     int task_paused;		// non-zero means task is paused
     double delayLeft;           // delay time left of G4, M66..
     int queuedMDIcommands;      // current length of MDI input queue
+    int channel_id;             // ID of this channel
 };
 
 // declarations for EMC_TOOL classes

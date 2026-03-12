@@ -272,6 +272,7 @@ extern "C" {
     double ext_offset_acc;	/* acceleration for an external axis offset */
     struct state_tag_t tag;
     int channel_id;
+    int force;
     } emcmot_command_t;
 
 /*! \todo FIXME - these packed bits might be replaced with chars
@@ -557,6 +558,7 @@ Suggestion: Split this in to an Error and a Status flag register..
 	double teleop_vel_cmd;		/* commanded axis velocity */
 	double max_pos_limit;	/* upper soft limit on axis pos */
 	double min_pos_limit;	/* lower soft limit on axis pos */
+	int owner_ch;		/* current owner channel */
     } emcmot_axis_status_t;
 
 /*********************************

@@ -600,6 +600,23 @@ double emcAxisGetMaxAcceleration(int axis)
     return AxisConfig[axis].MaxAccel;
 }
 
+int emcAxisAcquire(int axis, int force)
+{
+    emcmotCommand.command = EMCMOT_AXIS_ACQUIRE;
+    emcmotCommand.axis = axis;
+    emcmotCommand.force = force;
+
+    return usrmotWriteEmcmotCommand(&emcmotCommand);
+}
+
+int emcAxisRelease(int axis)
+{
+    emcmotCommand.command = EMCMOT_AXIS_RELEASE;
+    emcmotCommand.axis = axis;
+
+    return usrmotWriteEmcmotCommand(&emcmotCommand);
+}
+
 int emcAxisHasMaxJerk(int axis)
 {
     if (axis < 0 || axis >= EMCMOT_MAX_AXIS) {
@@ -628,6 +645,7 @@ int emcAxisUpdate(EMC_AXIS_STAT stat[], int axis_mask)
         stat[axis_num].velocity = axis->teleop_vel_cmd;
         stat[axis_num].minPositionLimit = axis->min_pos_limit;
         stat[axis_num].maxPositionLimit = axis->max_pos_limit;
+        stat[axis_num].owner_ch = axis->owner_ch;
     }
     return 0;
 }

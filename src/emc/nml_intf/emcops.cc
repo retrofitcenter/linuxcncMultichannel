@@ -23,7 +23,8 @@ EMC_AXIS_STAT::EMC_AXIS_STAT()
   : EMC_AXIS_STAT_MSG(EMC_AXIS_STAT_TYPE, sizeof(EMC_AXIS_STAT)),
     minPositionLimit(0.0),
     maxPositionLimit(0.0),
-    velocity(0.0)
+    velocity(0.0),
+    owner_ch(0)
 {
 }
 
@@ -141,7 +142,8 @@ EMC_TASK_STAT::EMC_TASK_STAT()
     interpreter_errcode(0),
     task_paused(0),
     delayLeft(0.0),
-    queuedMDIcommands(0)
+    queuedMDIcommands(0),
+    channel_id(0)
 {
     int t;
 

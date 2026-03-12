@@ -31,6 +31,7 @@ unsigned emc_debug = 0;		/* initially no debug messages */
 double emc_task_cycle_time = DEFAULT_EMC_TASK_CYCLE_TIME;
 
 int emc_task_interp_max_len = DEFAULT_EMC_TASK_INTERP_MAX_LEN;
+int emc_task_channel_id = 0;
 
 EmcPose tool_change_position;	/* no defaults */
 unsigned char have_tool_change_position = 0;	/* default is 'not there' */

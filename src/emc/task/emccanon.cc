@@ -61,6 +61,7 @@
 #include "nml_intf/interpl.hh"		// interp_list
 #include "nml_intf/emcglb.h"		// TRAJ_MAX_VELOCITY
 #include <rtapi_string.h>
+#include "libnml/rcs/rcs_print.hh"
 #include "rs274ngc/modal_state.hh"
 #include "tooldata/tooldata.hh"
 #include <algorithm>
@@ -4361,5 +4362,42 @@ int UNLOCK_ROTARY(int line_number, int joint_num)
 int LOCK_ROTARY(int /*line_number*/, int /*joint_num*/) {
     canon.rotary_unlock_for_traverse = -1;
     return 0;
+}
+
+void AXIS_ACQUIRE(int axis, int force)
+{
+    auto msg = std::make_unique<EMC_AXIS_ACQUIRE>();
+    msg->axis = axis;
+    msg->force = force;
+    msg->tag = _tag;
+    interp_list.append(std::move(msg));
+}
+
+void TASK_START_CHANNEL(int channel)
+{
+    fprintf(stderr, "TASK_START_CHANNEL: channel=%d\n", channel);
+    auto msg = std::make_unique<EMC_TASK_START_CHANNEL>();
+    msg->target_channel = channel;
+    msg->tag = _tag;
+    interp_list.append(std::move(msg));
+}
+
+void INIT_PROGRAM(int channel, const char* program)
+{
+    fprintf(stderr, "INIT_PROGRAM: channel=%d, program='%s'\n", channel, program);
+    auto msg = std::make_unique<EMC_TASK_INIT_CHANNEL>();
+    msg->target_channel = channel;
+    strncpy(msg->program, program, 255);
+    msg->program[255] = '\0';
+    msg->tag = _tag;
+    interp_list.append(std::move(msg));
+}
+
+void AXIS_RELEASE(int axis)
+{
+    auto msg = std::make_unique<EMC_AXIS_RELEASE>();
+    msg->axis = axis;
+    msg->tag = _tag;
+    interp_list.append(std::move(msg));
 }
 

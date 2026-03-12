@@ -292,6 +292,9 @@ int Interp::read_comment(char *line,     //!< string: line of RS274 code being p
 {
   int n;
 
+  if (line[*counter] != '(') {
+      fprintf(stderr, "DEBUG: read_comment: BUG! expected '(' but found '%c' (0x%02x) at counter=%d\n", line[*counter], (unsigned char)line[*counter], *counter);
+  }
   CHKS((line[*counter] != '('), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
   (*counter)++;
   for (n = 0; line[*counter] != ')'; (*counter)++, n++) {
@@ -559,6 +562,152 @@ mode. If this happens, the G80 is simply ignored.
 
 */
 
+int Interp::read_quoted_string(char *line, int *counter, char *target, int max_len)
+{
+  int i = 0;
+  while (isspace(line[*counter])) (*counter)++;
+  CHKS(line[*counter] != '"', _("Expected opening quote for string"));
+  (*counter)++;
+  while (line[*counter] != 0 && line[*counter] != '"' && i < max_len - 1) {
+      target[i++] = line[*counter];
+      (*counter)++;
+  }
+  CHKS(line[*counter] != '"', _("Expected closing quote for string"));
+  (*counter)++;
+  target[i] = 0;
+  return INTERP_OK;
+}
+
+int Interp::read_string_inside_parentheses(char *line, int *counter, char *target, int max_len)
+{
+  while (isspace(line[*counter])) (*counter)++;
+  CHKS(line[*counter] != '(', NCE_LEFT_BRACKET_MISSING_AFTER_GET);
+  (*counter)++;
+
+  while (isspace(line[*counter])) (*counter)++;
+  bool quoted = false;
+  if (line[*counter] == '"') {
+      quoted = true;
+      (*counter)++;
+  }
+
+  int i = 0;
+  while (line[*counter] != 0 && i < max_len - 1) {
+      if (quoted && line[*counter] == '"') {
+          quoted = false;
+          (*counter)++;
+          break;
+      }
+      if (!quoted && line[*counter] == ')') break;
+
+      target[i++] = line[*counter];
+      (*counter)++;
+  }
+  target[i] = 0;
+
+  while (isspace(line[*counter])) (*counter)++;
+  CHKS(line[*counter] != ')', NCE_RIGHT_BRACKET_MISSING_AFTER_GET);
+  (*counter)++;
+
+  return INTERP_OK;
+}
+
+int Interp::read_get(char *line, int *counter, block_pointer block, double *parameters)
+{
+  fprintf(stderr, "DEBUG: read_get: entering at counter=%d\n", *counter);
+  CHKS((strncasecmp(&line[*counter], "get", 3) != 0), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
+  CHKS(block->get_flag, NCE_MULTIPLE_GET_WORDS_ON_ONE_LINE);
+  *counter += 3; // skip "get"
+  while (isspace(line[*counter])) (*counter)++;
+  CHP(read_string_inside_parentheses(line, counter, block->get_axis, 16));
+  block->get_flag = true;
+  return INTERP_OK;
+}
+
+int Interp::read_getd(char *line, int *counter, block_pointer block, double *parameters)
+{
+  fprintf(stderr, "DEBUG: read_getd: entering at counter=%d\n", *counter);
+  CHKS((strncasecmp(&line[*counter], "getd", 4) != 0), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
+  CHKS(block->getd_flag, NCE_MULTIPLE_GETD_WORDS_ON_ONE_LINE);
+  *counter += 4; // skip "getd"
+  while (isspace(line[*counter])) (*counter)++;
+  CHP(read_string_inside_parentheses(line, counter, block->getd_axis, 16));
+  block->getd_flag = true;
+  return INTERP_OK;
+}
+
+int Interp::read_start(char *line, int *counter, block_pointer block, double *parameters)
+{
+  double value;
+  fprintf(stderr, "DEBUG: read_start: entering at counter=%d\n", *counter);
+  CHKS((strncasecmp(&line[*counter], "start", 5) != 0), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
+  CHKS(block->start_flag, NCE_MULTIPLE_START_WORDS_ON_ONE_LINE);
+  *counter += 5; // skip "start"
+  while (isspace(line[*counter])) (*counter)++;
+  if (line[*counter] != '(') ERS(NCE_LEFT_BRACKET_MISSING_AFTER_START);
+  *counter = (*counter + 1);
+  while (isspace(line[*counter])) (*counter)++;
+  CHP(read_real_value(line, counter, &value, parameters));
+  while (isspace(line[*counter])) (*counter)++;
+  if (line[*counter] != ')') ERS(NCE_RIGHT_BRACKET_MISSING_AFTER_START);
+  *counter = (*counter + 1);
+
+  block->start_channel = (int)value;
+  block->start_flag = true;
+  return INTERP_OK;
+}
+
+int Interp::read_init(char *line, int *counter, block_pointer block, double *parameters)
+{
+  double value;
+  fprintf(stderr, "DEBUG: read_init: entering at counter=%d\n", *counter);
+  CHKS((strncasecmp(&line[*counter], "init", 4) != 0), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
+  CHKS(block->init_flag, NCE_MULTIPLE_INIT_WORDS_ON_ONE_LINE);
+  *counter += 4; // skip "init"
+  while (isspace(line[*counter])) (*counter)++;
+  if (line[*counter] != '(') ERS(NCE_LEFT_BRACKET_MISSING_AFTER_INIT);
+  *counter = (*counter + 1);
+  while (isspace(line[*counter])) (*counter)++;
+
+  if (line[*counter] == '"') {
+      // Syntax: INIT("program", channel)
+      CHP(read_quoted_string(line, counter, block->init_program, 255));
+      while (isspace(line[*counter])) (*counter)++;
+      if (line[*counter] != ',') ERS(NCE_COMMA_MISSING_AFTER_INIT_CHANNEL);
+      (*counter)++;
+      while (isspace(line[*counter])) (*counter)++;
+      CHP(read_real_value(line, counter, &value, parameters));
+      block->init_channel = (int)value;
+  } else {
+      // Syntax: INIT(channel, "program")
+      while (isspace(line[*counter])) (*counter)++;
+      CHP(read_real_value(line, counter, &value, parameters));
+      block->init_channel = (int)value;
+      while (isspace(line[*counter])) (*counter)++;
+      if (line[*counter] != ',') ERS(NCE_COMMA_MISSING_AFTER_INIT_CHANNEL);
+      (*counter)++;
+      CHP(read_quoted_string(line, counter, block->init_program, 255));
+  }
+
+  while (isspace(line[*counter])) (*counter)++;
+  if (line[*counter] != ')') ERS(NCE_RIGHT_BRACKET_MISSING_AFTER_INIT);
+  (*counter)++;
+  block->init_flag = true;
+  return INTERP_OK;
+}
+
+int Interp::read_release(char *line, int *counter, block_pointer block, double *parameters)
+{
+  fprintf(stderr, "DEBUG: read_release: entering at counter=%d\n", *counter);
+  CHKS((strncasecmp(&line[*counter], "release", 7) != 0), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
+  CHKS(block->release_flag, NCE_MULTIPLE_RELEASE_WORDS_ON_ONE_LINE);
+  *counter += 7; // skip "release"
+  while (isspace(line[*counter])) (*counter)++;
+  CHP(read_string_inside_parentheses(line, counter, block->release_axis, 16));
+  block->release_flag = true;
+  return INTERP_OK;
+}
+
 int Interp::read_g(char *line,   //!< string: line of RS274/NGC code being processed
                   int *counter, //!< pointer to a counter for position on the line 
                   block_pointer block,  //!< pointer to a block being filled from the line 
@@ -824,6 +973,7 @@ int Interp::read_items(block_pointer block,      //!< pointer to a block being f
 
   length = strlen(line);
   counter = 0;
+  fprintf(stderr, "DEBUG: Interp::read_items: line='%s' length=%d\n", line, length);
 
   if (line[counter] == '/')     /* skip the slash character if first */
     counter++;
@@ -1201,6 +1351,30 @@ int Interp::read_one_item(
 {
   read_function_pointer function_pointer;
   char letter;
+
+  fprintf(stderr, "DEBUG: read_one_item: line='%s' counter=%d char='%c' (0x%02x)\n", line, *counter, line[*counter], (unsigned char)line[*counter]);
+
+  // Check for multi-character keywords first
+  if (strncasecmp(&line[*counter], "getd", 4) == 0 && !isalpha(line[*counter+4])) {
+      fprintf(stderr, "DEBUG: read_one_item: matched getd\n");
+      return read_getd(line, counter, block, parameters);
+  }
+  if (strncasecmp(&line[*counter], "get", 3) == 0 && !isalpha(line[*counter+3])) {
+      fprintf(stderr, "DEBUG: read_one_item: matched get\n");
+      return read_get(line, counter, block, parameters);
+  }
+  if (strncasecmp(&line[*counter], "release", 7) == 0 && !isalpha(line[*counter+7])) {
+      fprintf(stderr, "DEBUG: read_one_item: matched release\n");
+      return read_release(line, counter, block, parameters);
+  }
+  if (strncasecmp(&line[*counter], "start", 5) == 0 && !isalpha(line[*counter+5])) {
+      fprintf(stderr, "DEBUG: read_one_item: matched start\n");
+      return read_start(line, counter, block, parameters);
+  }
+  if (strncasecmp(&line[*counter], "init", 4) == 0 && !isalpha(line[*counter+4])) {
+      fprintf(stderr, "DEBUG: read_one_item: matched init\n");
+      return read_init(line, counter, block, parameters);
+  }
 
   letter = line[*counter];      /* check if in array range */
   CHKS(((letter < ' ') || (letter > 'z')),
@@ -2987,12 +3161,15 @@ may be involved.
 */
 
 int Interp::read_s(char *line,   //!< string: line of RS274NGC code being processed
-                  int *counter, //!< pointer to a counter for position on the line
-                  block_pointer block,  //!< pointer to a block being filled from the line
-                  double *parameters)   //!< array of system parameters                   
+                  int *counter, //!< pointer to a counter for position on the line 
+                  block_pointer block,  //!< pointer to a block being filled from the line 
+                  double *parameters)   //!< array of system parameters                    
 {
   double value;
 
+  if (line[*counter] != 's') {
+      fprintf(stderr, "DEBUG: read_s: BUG! expected 's' but found '%c' (0x%02x) at counter=%d\n", line[*counter], (unsigned char)line[*counter], *counter);
+  }
   CHKS((line[*counter] != 's'), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
   *counter = (*counter + 1);
   CHKS((block->s_flag), NCE_MULTIPLE_S_WORDS_ON_ONE_LINE);
@@ -3127,6 +3304,7 @@ int Interp::read_text(
 
   if (command == NULL) {
     if (fgets(raw_line, LINELEN, inport) == NULL) {
+      fprintf(stderr, "DEBUG: Interp::read_text: fgets returned NULL (EOF)\n");
       if(_setup.skipping_to_sub)
       {
         ERS(_("EOF in file:%s seeking o-word: o<%s> from line: %d"),
@@ -3156,6 +3334,7 @@ int Interp::read_text(
     }
     rtapi_strlcpy(line, raw_line, LINELEN);
     CHP(close_and_downcase(line));
+    fprintf(stderr, "DEBUG: Interp::read_text: line after close_and_downcase (from file)='%s'\n", line);
     if ((line[0] == '%') && (line[1] == 0) && (_setup.percent_flag)) {
         FINISH();
         return INTERP_ENDFILE;
@@ -3165,6 +3344,7 @@ int Interp::read_text(
     rtapi_strlcpy(raw_line, command, LINELEN);
     rtapi_strlcpy(line, command, LINELEN);
     CHP(close_and_downcase(line));
+    fprintf(stderr, "DEBUG: Interp::read_text: line after close_and_downcase (from command)='%s'\n", line);
   }
 
   _setup.parameter_occurrence = 0;      /* initialize parameter buffer */

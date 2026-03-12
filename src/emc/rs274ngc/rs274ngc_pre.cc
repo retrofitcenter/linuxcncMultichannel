@@ -1533,6 +1533,9 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
   static char name[] = "Interp::read";
   int read_status;
 
+  if (command) fprintf(stderr, "DEBUG: Interp::_read: command='%s'\n", command);
+  else fprintf(stderr, "DEBUG: Interp::_read: reading from file '%s'\n", _setup.filename);
+
   // this input reading code is in the wrong place. It should be executed
   // in sync(), not here. This would make correct parameter values available 
   // without doing a read() (e.g. from Python).
@@ -1646,6 +1649,8 @@ int Interp::_read(const char *command)  //!< may be NULL or a string to read
   read_status =
     read_text(command, _setup.file_pointer, _setup.linetext,
               _setup.blocktext, &_setup.line_length);
+
+  fprintf(stderr, "DEBUG: Interp::_read: read_text status=%d length=%d\n", read_status, _setup.line_length);
 
   if (read_status == INTERP_ERROR && _setup.skipping_to_sub) {
     _setup.skipping_to_sub = NULL;

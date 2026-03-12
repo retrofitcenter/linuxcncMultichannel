@@ -1002,6 +1002,26 @@ void SET_MOTION_OUTPUT_VALUE(int index, double value)
     return;
 }
 
+void AXIS_ACQUIRE(int axis, int force)
+{
+    PRINT("AXIS_ACQUIRE(%d, %d)\n", axis, force);
+}
+
+void AXIS_RELEASE(int axis)
+{
+    PRINT("AXIS_RELEASE(%d)\n", axis);
+}
+
+void TASK_START_CHANNEL(int channel)
+{
+    PRINT("TASK_START_CHANNEL(%d)\n", channel);
+}
+
+void INIT_PROGRAM(int channel, const char* program)
+{
+    printf("INIT_PROGRAM(%d, %s)\n", channel, program);
+}
+
 void SET_AUX_OUTPUT_BIT(int index)
 {
     PRINT("SET_AUX_OUTPUT_BIT(%d)\n", index);

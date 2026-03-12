@@ -268,12 +268,19 @@ static const char *get_nmlfile(void) {
     return PyUnicode_AsUTF8(fileobj);
 }
 
-static int Stat_init(pyStatChannel *self, PyObject * /*a*/, PyObject * /*k*/) {
+static int Stat_init(pyStatChannel *self, PyObject * a, PyObject * k) {
+    const char *status_name = "emcStatus";
+    static char *keywords[] = {"status_name", NULL};
+
+    if(!PyArg_ParseTupleAndKeywords(a, k, "|s", keywords, &status_name)) {
+        return -1;
+    }
+
     const char *file = get_nmlfile();
     if(file == NULL) return -1;
 
     RCS_STAT_CHANNEL *c =
-        new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "xemc", file);
+        new RCS_STAT_CHANNEL(emcFormat, (char*)status_name, "xemc", file);
     if(!c) {
         PyErr_Format( error, "new RCS_STAT_CHANNEL failed");
         return -1;
@@ -923,20 +930,28 @@ static PyTypeObject Stat_Type = {
 #endif
 };
 
-static int Command_init(pyCommandChannel *self, PyObject * /*a*/, PyObject * /*k*/) {
+static int Command_init(pyCommandChannel *self, PyObject * a, PyObject * k) {
+    const char *command_name = "emcCommand";
+    const char *status_name = "emcStatus";
+    static char *keywords[] = {"command_name", "status_name", NULL};
+
+    if(!PyArg_ParseTupleAndKeywords(a, k, "|ss", keywords, &command_name, &status_name)) {
+        return -1;
+    }
+
     const char *file = get_nmlfile();
     if(file == NULL) return -1;
 
     RCS_CMD_CHANNEL *c =
-        new RCS_CMD_CHANNEL(emcFormat, "emcCommand", "xemc", file);
+        new RCS_CMD_CHANNEL(emcFormat, (char*)command_name, "xemc", file);
     if(!c) {
         PyErr_Format( error, "new RCS_CMD_CHANNEL failed");
         return -1;
     }
     RCS_STAT_CHANNEL *s =
-        new RCS_STAT_CHANNEL(emcFormat, "emcStatus", "xemc", file);
+        new RCS_STAT_CHANNEL(emcFormat, (char*)status_name, "xemc", file);
     if(!s) {
-	delete s;
+	delete c;
         PyErr_Format( error, "new RCS_STAT_CHANNEL failed");
         return -1;
     }

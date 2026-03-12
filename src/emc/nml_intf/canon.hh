@@ -1051,6 +1051,11 @@ extern USER_DEFINED_FUNCTION_TYPE
 extern int USER_DEFINED_FUNCTION_ADD(USER_DEFINED_FUNCTION_TYPE func,
 				     int num);
 				     
+extern void AXIS_ACQUIRE(int axis, int force);
+extern void AXIS_RELEASE(int axis);
+extern void TASK_START_CHANNEL(int channel);
+extern void INIT_PROGRAM(int channel, const char* program);
+
 /* to be called by emcTaskPlanExecute when done interpreting.  This causes the
  * last segment to be output, if it has been held to do segment merging */
 extern void FINISH(void);

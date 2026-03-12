@@ -45,6 +45,7 @@ extern "C" {
     extern double emc_task_cycle_time;
 
     extern int emc_task_interp_max_len;
+    extern int emc_task_channel_id;
 
     extern struct EmcPose tool_change_position;
     extern unsigned char have_tool_change_position;

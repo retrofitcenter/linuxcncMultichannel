@@ -109,8 +109,12 @@ struct PM_CARTESIAN;
 #define EMC_TRAJ_SET_SPINDLE_SCALE_TYPE              ((NMLTYPE) 233)
 #define EMC_TRAJ_SET_FO_ENABLE_TYPE                  ((NMLTYPE) 234)
 #define EMC_TRAJ_SET_SO_ENABLE_TYPE                  ((NMLTYPE) 235)
+
 #define EMC_TRAJ_SET_FH_ENABLE_TYPE                  ((NMLTYPE) 236)
 #define EMC_TRAJ_RIGID_TAP_TYPE                      ((NMLTYPE) 237)
+
+#define EMC_AXIS_ACQUIRE_TYPE                        ((NMLTYPE) 244)
+#define EMC_AXIS_RELEASE_TYPE                        ((NMLTYPE) 245)
 
 #define EMC_TRAJ_STAT_TYPE                           ((NMLTYPE) 299)
 
@@ -142,6 +146,8 @@ struct PM_CARTESIAN;
 #define EMC_TASK_PLAN_OPTIONAL_STOP_TYPE             ((NMLTYPE) 519)
 #define EMC_TASK_PLAN_REVERSE_TYPE                   ((NMLTYPE) 520)
 #define EMC_TASK_PLAN_FORWARD_TYPE                   ((NMLTYPE) 521)
+#define EMC_TASK_START_CHANNEL_TYPE                  ((NMLTYPE) 522)
+#define EMC_TASK_INIT_CHANNEL_TYPE                   ((NMLTYPE) 523)
 
 #define EMC_TASK_STAT_TYPE                           ((NMLTYPE) 599)
 
@@ -214,7 +220,8 @@ enum class EMC_TASK_EXEC {
     WAITING_FOR_MOTION_AND_IO = 7,
     WAITING_FOR_DELAY = 8,
     WAITING_FOR_SYSTEM_CMD = 9,
-    WAITING_FOR_SPINDLE_ORIENTED = 10
+    WAITING_FOR_SPINDLE_ORIENTED = 10,
+    WAITING_FOR_AXIS_ACQUIRE = 11
 };
 
 // types for EMC_TASK interpState
@@ -293,6 +300,8 @@ extern int emcAxisUpdate(EMC_AXIS_STAT stat[], int numAxes);
 extern int emcAxisSetMaxJerk(int axis,double jerk);
 extern int emcAxisHasMaxJerk(int axis);
 extern double emcAxisGetMaxJerk(int axis);
+extern int emcAxisAcquire(int axis, int force);
+extern int emcAxisRelease(int axis);
 // implementation functions for EMC_JOINT types
 
 extern int emcJointSetType(int joint, unsigned char jointType);

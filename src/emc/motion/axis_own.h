@@ -35,3 +35,4 @@ int axis_define(uint16_t axis_id, int joint);          // config time
 int axis_acquire(uint16_t axis_id, uint8_t channel);   // runtime
 int axis_release(uint16_t axis_id, uint8_t channel);   // runtime
 void axis_rebuild_joint_owner_map(int numJoints);      // after define or ownership change
+uint8_t axis_get_owner_ch(int axis_num);

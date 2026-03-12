@@ -607,6 +607,10 @@ void SET_AUX_OUTPUT_VALUE(int /*index*/, double /*value*/) {}
 void CLEAR_MOTION_OUTPUT_BIT(int /*bit*/) {}
 void SET_MOTION_OUTPUT_BIT(int /*bit*/) {}
 void SET_MOTION_OUTPUT_VALUE(int /*index*/, double /*value*/) {}
+void AXIS_ACQUIRE(int /*axis*/, int /*force*/) {}
+void AXIS_RELEASE(int /*axis*/) {}
+void TASK_START_CHANNEL(int /*channel*/) {}
+void INIT_PROGRAM(int /*channel*/, const char* /*program*/) {}
 void TURN_PROBE_ON() {}
 void TURN_PROBE_OFF() {}
 int UNLOCK_ROTARY(int /*line_no*/, int /*joint_num*/) {return 0;}

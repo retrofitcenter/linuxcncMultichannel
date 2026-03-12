@@ -71,10 +71,19 @@ int Interp::close_and_downcase(char *line)       //!< string: one line of NC cod
 {
     int m;
     int n;
-    int comment, semicomment;
+    int comment, semicomment, quoted;
     char item;
-    comment = semicomment = 0;
+    comment = semicomment = quoted = 0;
     for (n = 0, m = 0; (item = line[m]) != '\0'; m++) {
+        if (item == '"' && !comment && !semicomment) {
+            quoted = !quoted;
+            line[n++] = item;
+            continue;
+        }
+        if (quoted) {
+            line[n++] = item; // pass literally
+            continue;
+        }
 	if ((item == ';') && !comment)
 	    semicomment = 1;
 
@@ -101,6 +110,7 @@ int Interp::close_and_downcase(char *line)       //!< string: one line of NC cod
 	    line[n++] = item;         /* copy anything else */
 	}
     }
+    CHKS((quoted), "Unclosed quoted string");
     CHKS((comment), NCE_UNCLOSED_COMMENT_FOUND);
     line[n] = 0;
     return INTERP_OK;
@@ -270,8 +280,20 @@ int Interp::init_block(block_pointer block)      //!< pointer to a block to be i
   block->b_flag = false;
   block->c_flag = false;
   block->comment[0] = 0;
+  block->get_axis[0] = 0;
+  block->get_flag = false;
+  block->release_axis[0] = 0;
+  block->release_flag = false;
+  block->getd_axis[0] = 0;
+  block->getd_flag = false;
+  block->start_channel = -1;
+  block->start_flag = false;
+  block->init_channel = -1;
+  block->init_program[0] = 0;
+  block->init_flag = false;
   block->d_flag = false;
   block->dollar_flag = false;
+  block->dollar_number = -1;
   block->e_flag = false;
   block->f_flag = false;
   for (n = 0; n < GM_MAX_MODAL_GROUPS; n++) {
@@ -285,6 +307,7 @@ int Interp::init_block(block_pointer block)      //!< pointer to a block to be i
   block->l_number = -1;
   block->l_flag = false;
   block->line_number = -1;
+  block->saved_line_number = -1;
   block->n_number = -1;
   block->motion_to_be = -1;
   block->m_count = 0;

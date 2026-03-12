@@ -4,6 +4,10 @@
 named_axis_t g_named_axes[MAX_NAMED_AXES];
 axis_own_t   g_axis_own[MAX_NAMED_AXES];
 
+// Definition of the symbol expected by command.c (and declared in motion.h)
+#include "motion.h"
+named_axis_rt_t named_axes[MAX_NAMED_AXES];
+
 // you can place this in a static array in motion, size EMCMOT_MAX_JOINTS
 uint8_t *g_joint_owner_ch = 0;
 
@@ -34,6 +38,12 @@ int axis_define(uint16_t axis_id, int joint) {
             g_named_axes[i].defined = 1;
             g_axis_own[i].owner_ch  = 0;
             g_axis_own[i].lock_count= 0;
+
+            // Sync to named_axes used in command.c
+            named_axes[i].joint = joint;
+            named_axes[i].defined = 1;
+            named_axes[i].owner_ch = 0;
+            named_axes[i].lock_count = 0;
             return i;
         }
     }
@@ -47,10 +57,14 @@ int axis_acquire(uint16_t axis_id, uint8_t channel) {
     if (g_axis_own[i].owner_ch == 0) {
         g_axis_own[i].owner_ch = channel;
         g_axis_own[i].lock_count = 1;
+
+        named_axes[i].owner_ch = channel;
+        named_axes[i].lock_count = 1;
         return 0;
     }
     if (g_axis_own[i].owner_ch == channel) {
         if (g_axis_own[i].lock_count < 255) g_axis_own[i].lock_count++;
+        named_axes[i].lock_count = g_axis_own[i].lock_count;
         return 0;
     }
     return -11; // busy owned by other channel
@@ -64,10 +78,14 @@ int axis_release(uint16_t axis_id, uint8_t channel) {
 
     if (g_axis_own[i].lock_count > 1) {
         g_axis_own[i].lock_count--;
+        named_axes[i].lock_count = g_axis_own[i].lock_count;
         return 0;
     }
     g_axis_own[i].owner_ch = 0;
     g_axis_own[i].lock_count = 0;
+
+    named_axes[i].owner_ch = 0;
+    named_axes[i].lock_count = 0;
     return 0;
 }
 
@@ -81,5 +99,16 @@ void axis_rebuild_joint_owner_map(int numJoints) {
         if (j < 0 || j >= numJoints) continue;
         uint8_t owner = g_axis_own[i].owner_ch;
         if (owner) g_joint_owner_ch[j] = owner;
+
+        // Extra safety: Sync named_axes in rebuild
+        named_axes[i].owner_ch = owner;
+        named_axes[i].lock_count = g_axis_own[i].lock_count;
+        named_axes[i].joint = g_named_axes[i].joint;
+        named_axes[i].defined = g_named_axes[i].defined;
     }
+}
+
+uint8_t axis_get_owner_ch(int axis_num) {
+    if (axis_num < 0 || axis_num >= MAX_NAMED_AXES) return 0;
+    return g_axis_own[axis_num].owner_ch;
 }
